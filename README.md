@@ -1,85 +1,98 @@
-# Fluid Antenna System (FAS) Simulation and Neural Network Channel Prediction
+# Fluid Antenna System (FAS) under Finite Blocklength: BLER Analysis and Neural Network Port Prediction
 
 ## Overview
 
-This project explores a **Fluid Antenna System (FAS)** for wireless communications using MATLAB. It combines statistical channel modeling, Monte Carlo simulation, finite blocklength performance analysis, and neural network-based channel prediction to investigate antenna selection and communication reliability.
+MATLAB implementation of a **Fluid Antenna System (FAS)** study for short-packet (URLLC / 6G) communications. A user device with a single RF chain selects the best of `N` configurable antenna ports over a spatially correlated Rayleigh fading channel.
 
-The project also compares a conventional single-antenna system with FAS and evaluates whether machine learning can identify a high-performing antenna port using only partial channel observations.
+The project covers:
+
+1. **Statistical analysis** of the FAS channel gain using a *Spatial Block-Correlation (SBC)* model.
+2. **Block error rate (BLER)** analysis in the **finite blocklength (FBL)** regime, which is more realistic than outage probability for short packets.
+3. **Low-complexity approximations** (Gauss-Laguerre quadrature, Gamma moment matching, high-SNR BLER asymptotic).
+4. **Neural network port prediction**, which estimates the best port from a few measured ports instead of scanning all of them.
+
+Course project (Advanced Communication Networks and Systems, *MHTTT*), Faculty of Electronics and Telecommunications, The University of Danang - University of Science and Technology (DUT). Group 11, supervised by Assoc. Prof. Le Thi Phuong Mai.
 
 ## Key Features
 
-- **FAS Channel Modeling:** Construct spatial correlation matrices and simulate correlated Rayleigh fading channels.
-- **Statistical Analysis:** Estimate channel power probability density functions (PDFs) and cumulative distribution functions (CDFs).
-- **Monte Carlo Simulation:** Generate channel samples and examine the distribution of the strongest antenna-port gain.
-- **Gamma Approximation:** Compare the estimated channel-power distribution with a Gamma-distribution approximation.
-- **Neural Network Prediction:** Train a feedforward neural network to predict channel power across antenna ports from partial observations.
-- **Antenna Port Selection:** Compare the ML-selected port with exhaustive search over all ports.
-- **Communication Performance Evaluation:** Analyze block error rate (BLER) against signal-to-noise ratio (SNR), including exact and high-SNR asymptotic approximations.
-- **Performance Metrics:** Evaluate best-port selection accuracy, retained channel gain, and outage probability.
+- **FAS channel model:** Toeplitz spatial correlation matrix (Clarke model, `sinc`) and its block-diagonal SBC approximation (`BlockCorrelation` function in `Main_FBL_FAS.m`).
+- **Derived PDF/CDF:** channel-power PDF of the best port, computed with **Gauss-Laguerre quadrature** (order `N_GL = 128`) using non-central chi-square functions (`ncx2cdf`, `ncx2pdf`).
+- **Monte Carlo validation:** 2x10^5 correlated Rayleigh samples generated with the *full* Toeplitz matrix (Cholesky), compared against the SBC-based analytical PDF/CDF.
+- **Gamma approximation:** shape/scale obtained by matching the mean and variance of the channel power.
+- **FBL BLER analysis:** normal approximation with `U = 100` bits and blocklength `M = 400` (`Rc = 0.25`); exact expression vs. high-SNR asymptotic, averaged with exact PDF and Gamma PDF (four combinations), SNR from -30 dB to 30 dB.
+- **Conventional baseline:** `L`-antenna MRC system over Rayleigh fading (`L = 1` by default, configurable) for comparison with FAS.
+- **Neural network port prediction:** feedforward network (hidden layers 256/128, `trainscg`) predicts the channel power of all 30 ports from 5 measured ports; compared against exhaustive search using best-port accuracy, retained channel gain and outage probability.
 
 ## Project Structure
 
-```text
-MHTTT/
-├── Main_Conventional_Multiple_Antenna_System.m
-├── Main_FBL_FAS.m
-├── Step1_GenerateData.m
-├── Step2_TrainModel.m
-├── Step3_TestAndEvaluate.m
-└── Sigma.mat
+```
+MHTTT_project/
+├── Main_FBL_FAS.m                              # FAS statistics + FBL BLER (SBC, GL quadrature, Gamma)
+├── Main_Conventional_Multiple_Antenna_System.m # Baseline: L-antenna MRC, average BLER
+├── Step1_GenerateData.m                        # Correlated channel data for ML (N = 30, 5 observed ports)
+├── Step2_TrainModel.m                          # Train feedforward network
+├── Step3_TestAndEvaluate.m                     # Compare ML port selection with exhaustive search
+├── Sigma.mat                                   # Stored MATLAB data file
+└── .gitignore
 ```
 
 | File | Purpose |
-|---|---|
-| `Main_Conventional_Multiple_Antenna_System.m` | Simulates average BLER for a conventional antenna system over Rayleigh fading. |
-| `Main_FBL_FAS.m` | Analyzes FAS channel statistics and evaluates BLER performance using different distribution and approximation methods. |
-| `Step1_GenerateData.m` | Generates correlated channel samples and partial-observation training data. |
-| `Step2_TrainModel.m` | Trains a feedforward neural network for channel-power prediction. |
-| `Step3_TestAndEvaluate.m` | Evaluates predicted antenna-port selection against exhaustive search. |
+|------|---------|
+| `Main_FBL_FAS.m` | Builds the correlation matrix and SBC block sizes, runs Monte Carlo, computes the PDF/CDF (Gauss-Laguerre), Gamma approximation and average BLER vs. SNR. |
+| `Main_Conventional_Multiple_Antenna_System.m` | Average BLER vs. SNR for a conventional `L`-antenna MRC receiver (`t_L ~ Gamma(L, sigma^2)`). |
+| `Step1_GenerateData.m` | Generates 200,000 correlated channel samples over 30 ports (`W = 1`); input = power at ports `[1, 8, 15, 23, 30]`, target = power at all ports. Saves `FAS_ML_Data.mat`. |
+| `Step2_TrainModel.m` | Trains the network on an 80/20 split and saves `FAS_Trained_Net.mat`. |
+| `Step3_TestAndEvaluate.m` | Evaluates the predicted best port against exhaustive search. |
 | `Sigma.mat` | Stored MATLAB data file included in the repository. |
+
+## Default Simulation Parameters
+
+| Parameter | `Main_FBL_FAS.m` | ML pipeline (`Step1`-`Step3`) |
+|-----------|------------------|-------------------------------|
+| Ports `N` | 10 | 30 (5 observed) |
+| Normalized length `W` | 0.5 | 1 |
+| Blocklength `M` / info bits `U` | 400 / 100 | - |
+| Channel variance `sigma^2` | 2 | - |
+| Block correlation `mu^2` | 0.97 | - |
+| SNR range | -30 to 30 dB | - |
+
+The parameters in `Main_FBL_FAS.m` can be edited (for example `N = 50`, `W = 5`) to reproduce the larger-aperture scenarios discussed in the project report.
 
 ## Methodology
 
-### 1. Channel Data Generation
+### 1. Channel model and SBC approximation
+Port correlation follows a Toeplitz matrix with `sinc` entries. For the analysis, the full matrix is approximated by a block-diagonal matrix with `B` independent blocks of strongly correlated ports (`mu^2 = 0.97`), so the CDF of the best-port gain factorizes into a product over blocks.
 
-The data-generation script simulates correlated Rayleigh fading across **30 antenna ports**. It selects five ports as partial observations and uses the channel power across all ports as the prediction target.
+### 2. PDF/CDF and approximations
+The exact PDF contains infinite integrals; they are evaluated by Gauss-Laguerre quadrature. A Gamma distribution (moment matching) gives a closed-form alternative.
 
-The generated dataset is saved as `FAS_ML_Data.mat`.
+### 3. Finite blocklength BLER
+The instantaneous BLER uses the normal approximation `Q((C - Rc) / sqrt(V / M))`. Average BLER is obtained by integrating over the FAS channel PDF, using either the exact or the Gamma PDF, and either the exact BLER or its high-SNR asymptotic.
 
-### 2. Neural Network Training
+### 4. Neural network port selection
+The network predicts channel power for all ports from 5 measured ports. The predicted best port is compared with the true best port. The evaluation reports:
 
-A feedforward neural network is trained using MATLAB's Neural Network Toolbox. The dataset is divided into 80% training data and 20% testing data.
+- **Best-port selection accuracy**
+- **Retained channel gain** relative to the true maximum
+- **Outage probability** of the selected port
 
-The model uses two hidden layers with 256 and 128 neurons and the scaled conjugate gradient (`trainscg`) training algorithm.
+## Reported Results (from the project report)
 
-The trained model and test data are saved to `FAS_Trained_Net.mat`.
+These values come from the group's final report and may not match a default run of the scripts; they depend on the parameters above.
 
-### 3. Antenna Port Selection
-
-The trained network predicts channel power across all ports based on observations from five selected ports. The predicted best port is then compared with the true best port found through exhaustive search.
-
-The evaluation reports:
-
-- **Best-port selection accuracy:** Percentage of test samples where the predicted port matches the true best port.
-- **Retained channel gain:** Average channel gain achieved by the selected port relative to the true maximum.
-- **Outage probability:** Probability that the selected channel gain falls below a predefined threshold.
-
-### 4. BLER Performance Analysis
-
-The FAS simulation evaluates BLER over an SNR range from -30 dB to 30 dB. It compares exact and high-SNR asymptotic BLER expressions, as well as channel statistics obtained from the derived PDF and Gamma approximation.
-
-A conventional antenna system is also simulated to provide a reference for performance comparison.
+- Theoretical PDF/CDF match the Monte Carlo histogram and CDF.
+- The four BLER evaluation methods (exact/Gamma PDF x exact/asymptotic BLER) nearly coincide at medium and high SNR.
+- With `N = 50`, `W = 5`, FAS with a single RF chain reaches BLER comparable to a conventional system with 20 antennas.
+- Neural network port prediction with 5 of 30 ports measured trades roughly 1% of channel gain for a large reduction in scanning cost.
 
 ## Requirements
 
 - MATLAB
-- MATLAB toolboxes providing the functions used by the scripts, including Neural Network Toolbox and relevant statistical functions
-
-Functions used in the simulations include `fitnet`, `train`, `qfunc`, `ncx2cdf`, `ncx2pdf`, `gampdf`, and `gamcdf`. Availability depends on the installed MATLAB toolboxes and version.
+- Toolboxes providing the functions used: Deep Learning / Neural Network Toolbox (`fitnet`, `train`) and Statistics and Machine Learning Toolbox (`ncx2cdf`, `ncx2pdf`, `gampdf`, `gamcdf`, `qfunc` may require Communications Toolbox depending on version)
 
 ## How to Run
 
-Run the machine learning workflow in the following order from the MATLAB Command Window:
+Machine learning workflow (run in order, from the project folder):
 
 ```matlab
 Step1_GenerateData
@@ -87,33 +100,20 @@ Step2_TrainModel
 Step3_TestAndEvaluate
 ```
 
-Run the analytical and statistical FAS simulation separately:
+Analytical FAS simulation:
 
 ```matlab
 Main_FBL_FAS
 ```
 
-Run the conventional antenna-system simulation separately:
+Conventional baseline (set `L` inside the script):
 
 ```matlab
 Main_Conventional_Multiple_Antenna_System
 ```
 
-Run the scripts from the project directory so that generated `.mat` files are saved and loaded from the expected location.
+Run the scripts from the project directory so the generated `.mat` files are saved and loaded correctly.
 
 ## Technologies
 
-- MATLAB
-- Wireless Communications
-- Fluid Antenna Systems (FAS)
-- Rayleigh Fading and Spatial Correlation
-- Neural Networks and Regression
-- Monte Carlo Simulation
-- Finite Blocklength Communications
-- BLER and Outage Probability Analysis
-
-## Project Goal
-
-The goal is to study how statistical modeling and neural network-based channel prediction can support antenna-port selection in FAS, potentially reducing the need to measure every port while maintaining strong channel performance.
-
-*Note: The scripts implement simulation and evaluation workflows. Performance values should be obtained by running the code in a compatible MATLAB environment; no numerical results are claimed here.*
+MATLAB, Fluid Antenna Systems, Rayleigh fading and spatial correlation, finite blocklength communications, BLER analysis, Gauss-Laguerre quadrature, Monte Carlo simulation, neural networks (regression).
